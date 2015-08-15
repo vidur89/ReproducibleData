@@ -1,0 +1,262 @@
+---
+title: "Peer Assessment 1"
+author: "Vidur Nayyar"
+date: "15 August 2015"
+output: html_document
+---
+### Introduction
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.   
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+#### Requirements to run
+```
+Make a directory named as "data" in your working directory to store the raw data.
+```
+#### Loading the libraries
+```{r,cache=TRUE,message=FALSE,results='hide'}
+library(data.table)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(xtable)
+opts_chunk$set(echo = TRUE, results = 'hold')       
+#Define Text results. hold output pieces and push them to end of chunk
+```
+
+#### Specifying the URL and name of the file to be stored 
+```{r,cache=TRUE,results='hide',message=TRUE}
+fileURL<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+fileStoredName<-"ActivityMonitorData"
+```
+#### Defining a function to load the data with try cases
+```{r, echo=TRUE,results='hide',cache=TRUE,message=FALSE}
+getData<-function(fileOpen="ActivityMonitorData",direct="R_programming"){
+      print(paste("The present working directory is:",workingDir<-getwd()))
+      date<-format(Sys.Date(),"%Y")
+      newFileName<-paste(fileStoredName,date,sep = "-")
+      fileList<-list.files()
+      if(sum("data"==fileList)>0){
+            if(!file.exists(paste("./data/",newFileName,".zip",sep=""))){
+                  download.file(fileURL,method="curl",destfile = paste("./data/",newFileName,".zip",sep=""))
+                  if(!file.exists(paste("./data/",newFileName,sep="")))
+                        unzip(zipfile=paste("./data/",newFileName,
+                                            ".zip",sep=""), exdir=paste("./data/",newFileName,sep=""))
+            }
+      }
+      else
+            print("You seem to be in a different directory")
+      actualDoc<-list.files(paste("./data/",newFileName,sep=""),full.names = T)
+      
+      output<- tryCatch(
+            {
+                  fread(actualDoc,sep=",",header=T,data.table = TRUE)
+            },
+            error=function(cond){
+                  message(paste("file does not seem to exist:", actualDoc))
+                  message("Here's the original error message:")
+                  message(cond)
+                  return(2)
+            },
+            warning=function(cond) {
+                  message(paste("file caused a warning:", actualDoc))
+                  message("Here's the original warning message:")
+                  message(cond)
+                  return(3)
+            },
+            finally={
+                  message(paste("Processed file: ", actualDoc," was opened successfully"))
+            }
+      )
+      output
+}
+```
+
+#### Calling the function to load the data
+
+```{r, echo=T,results='hide',cache=TRUE}
+activityData<-getData()
+```
+
+#### Preprocessing the data
+```{r, echo=T,results='hide',cache=TRUE}
+activityData$recordDate<-as.Date(strptime(activityData$date,"%Y-%m-%d"))
+activityData<-mutate(activityData, steps=as.numeric(steps))
+```
+#### str() view of the preprocessed data
+
+```{r, echo=FALSE}
+str(activityData)
+```
+
+---
+1. <u>What is mean total number of steps taken per day?</u>
+---
+---
+
+#### Processing the data to get the mean ,median and total steps taken in a day
+```{r, results='markup'}
+groupedActivityData<-group_by(activityData, recordDate)
+summary<-summarize(groupedActivityData, meanSteps=mean(steps,na.rm = T), totalSteps=sum(steps,na.rm =T),
+                   medianSteps=median(steps,na.rm=T))
+maximumSteps=max(summary$totalSteps)
+```
+---
+Calculate the total number of steps taken per day
+---
+The Total steps in a day are:
+```{r,echo=F,results='markup'}
+summary$totalSteps
+```
+---
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+---
+#### A histogram of the Total number of steps per day.
+
+```{r} 
+par(mfrow=c(1,1),bg="beige")
+hist(summary$totalSteps, main = "Histogram: No. Of Steps", xlab="Total No. of steps per day",
+     angle=120, col="brown", density=20,xlim=c( 0 , maximumSteps+5000),ylim=c(0,20),breaks=10)
+
+#<--!barplot(summary$total,names.arg = summary$recordDate, angle= 60, density= 20, col="gold", main="Bar Plot: No. Of Steps", ylab="Total No. of steps", xlab="days", axisnames = T, cex.names = 0.5, axes=T,axis.lty = 1,xpd = T,las=2,pos=1,beside = F)-->
+```
+---
+Calculate and report the mean and median of the total number of steps taken per day
+---
+
+#### The mean and median of the total steps per day are below:
+
+```{r}
+mean(summary$totalSteps)
+median(summary$totalSteps)
+```
+---
+2. <u>What is the average daily activity pattern?</u>
+---
+---
+#### Processing the data to get the mean number of steps per 5 minute interval
+```{r}
+k <- aggregate(activityData$steps, by= list(activityData$interval),FUN = mean, na.rm=T)
+```
+---
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+---
+
+#### A graph of the average number of steps per 5-Minute-Interval.
+
+```{r}
+par(mfrow=c(1,1),bg="beige")
+plot(k$Group.1,k$x, type ="l",main="Time Series Plot of Average No. of Steps",
+     xlab="5 minute Intervals", ylab="average steps taken", col="blue",xaxt="n")
+axis(1,labels=T, las=2)
+abline(h=maximum<-max(k$x),col="magenta", lwd=1)
+abline(v=maximumInterval<-k$Group.1[k$x==max(k$x)],col="magenta",lwd=1)
+text(y=150,x=round(k$Group.1[k$x==max(k$x)],3)-90,paste("max. Interval is=",round(maximumInterval,3)),
+     col="magenta1", srt=90)
+```
+---
+Report which 5-minute interval has the max average of steps?
+---
+
+#### The 5-Minute-Interval with the highest number of steps is:
+```{r}
+print(maximumInterval)
+```
+
+---
+3. <u>Imputing missing values</u>
+---
+---
+---
+Calculate and report the total number of missing values in the dataset
+---
+#### The total number of NAs in the original data is:
+```{r}
+numberOfNA<-sum(is.na(activityData$steps))
+numberOfNA
+```
+adding a new column to the data table, containing information about the missing values
+```{r}
+newActivityData<-mutate(activityData,IsNA=is.na(activityData$steps))
+```
+---
+Devise a strategy for filling in all of the missing values in the dataset
+---
+#### Filling in the missing values by replacing the NA's with the mean of the steps taken at the same time interval
+```{r}
+answer<-c()
+for(i in 1:nrow(newActivityData)){
+      if(newActivityData$IsNA[i])
+           answer[i]<- filter(k,Group.1==newActivityData$interval[i])$x
+      else
+            answer[i]<-newActivityData$steps[i]
+}
+```
+---
+Create a new dataset that is equal to the original dataset but with the missing data filled in
+---
+This new dataframe has the estimated values of the NAs imputed in.
+```{r}
+newActivityData<-newActivityData[,steps:=answer]
+```
+
+---
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day
+---
+#### Processing the data to get the mean ,median and total steps taken in a day
+```{r}
+newGroupedActivityData<-group_by(newActivityData, recordDate)
+newSummary<-summarize(newGroupedActivityData, meanSteps=mean(assumedSteps,na.rm = T),
+                      totalSteps=sum(assumedSteps,na.rm = T), medianSteps=median(assumedSteps,na.rm=T))
+```
+
+#### A histogram of the Total number of steps per day.
+
+```{r}
+par(mfrow=c(1,1),bg="beige")
+newMaximumSteps=max(newSummary$totalSteps)
+hist(newSummary$totalSteps, main = "Histogram: No. Of Steps", xlab="Total No. of steps per day",
+     angle= 120, col="brown", density=20,xlim=c( 0 , newMaximumSteps+5000),ylim=c(0,25),breaks=10)
+```
+---
+What is the impact of imputing missing data on the estimates of the total daily number of steps?
+---
+#### The Total steps in a day are:
+```{r}
+print((newSummary$totalSteps))
+```
+#### The mean and median of the total steps per day are below:
+
+```{r}
+mean(newSummary$totalSteps)
+median(newSummary$totalSteps)
+```
+The new mean value is exactly the same as the original, however, the median is very slightly different. This shows that imputing values based on means does not create a large impact in the results. Because these new values were put in based on the other steps values, the data isn't too different.
+
+---
+4. <u>Are there differences in activity patterns between weekdays and weekends?</u>
+---
+---
+
+---
+Create a new factor variable in the dataset with two levels ??? ???weekday??? and ???weekend??? indicating whether a given date is a weekday or weekend day
+---
+
+#### Given below is the data table divided between weekdays and weekends:
+```{r}
+weekdayData<-newActivityData[,weekday:= (weekdays(newActivityData$recordDate)=="Sunday" |
+                                               weekdays(newActivityData$recordDate)=="Saturday") ]
+weekdayData<-mutate(weekdayData,weekday=as.factor(weekday))
+levels(weekdayData$weekday)<- c("weekday", "weekend")
+newK <- aggregate(weekdayData$assumedSteps, by= list(weekdayData$interval,weekdayData$weekday),
+                  FUN = mean, na.rm=T)
+colnames(newK) <- c("interval","day_of_week", "steps")
+```
+
+---
+Make a panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days
+---
+#### panel plot containing a time series of the average number of steps taken across all weekdays and weekend days
+```{r}
+qplot(interval, steps, data=newK, facets = day_of_week~.,
+      main = "Activity Pattern On Weekdays vs Weekends" ) + geom_line(col="black")
+
+```
